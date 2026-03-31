@@ -1,0 +1,56 @@
+name: QA Smoke
+
+on:
+  repository_dispatch:
+    types:
+      - qa-smoke
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: Dev app repo owner/name
+        required: true
+      ref:
+        description: Commit SHA or branch
+        required: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m playwright install --with-deps
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "repo=${{ github.event.client_payload.repo }}" >> $GITHUB_OUTPUT
+            echo "ref=${{ github.event.client_payload.ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "repo=${{ inputs.repo }}" >> $GITHUB_OUTPUT
+            echo "ref=${{ inputs.ref }}" >> $GITHUB_OUTPUT
+          fi
+      - name: Checkout dev app
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.resolve.outputs.repo }}
+          ref: ${{ steps.resolve.outputs.ref }}
+          token: ${{ secrets.DEV_REPO_TOKEN || github.token }}
+          path: dev_app
+      - name: Start dev app
+        run: |
+          python -m http.server 8000 --directory dev_app/app > /tmp/devserver.log 2>&1 &
+          sleep 2
+      - name: Run smoke tests
+        run: |
+          APP_URL=http://127.0.0.1:8000 APP_TITLE="Sample Dev App" APP_HEADING="Sample Dev App" pytest -m smoke --html=artifacts/report.html --self-contained-html --alluredir=artifacts/allure
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: artifacts
