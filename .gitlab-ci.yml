@@ -1,0 +1,54 @@
+stages:
+  - smoke
+  - regression
+  - nightly
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+smoke:
+  stage: smoke
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+  image: python:3.9
+  before_script:
+    - pip install -r requirements.txt
+    - python -m playwright install --with-deps
+  script:
+    - pytest -m smoke --html=artifacts/report.html --self-contained-html --alluredir=artifacts/allure
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+
+regression:
+  stage: regression
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  image: python:3.9
+  before_script:
+    - pip install -r requirements.txt
+    - python -m playwright install --with-deps
+  script:
+    - pytest -m "regression and not smoke" --html=artifacts/report.html --self-contained-html --alluredir=artifacts/allure
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+
+nightly_regression:
+  stage: nightly
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  image: python:3.9
+  before_script:
+    - pip install -r requirements.txt
+    - python -m playwright install --with-deps
+  script:
+    - pytest -m regression --html=artifacts/report.html --self-contained-html --alluredir=artifacts/allure
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
