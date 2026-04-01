@@ -127,21 +127,28 @@ pipeline {
   }
 
   post {
-    success {
-      script {
-        if (params.POST_STATUS && fileExists('.target_sha') && readFile('.target_sha').trim()) {
-          postGitHubStatus('success', 'QA regression passed', params.DEV_REPO, readFile('.target_sha').trim())
-        }
-      }
-    }
-    failure {
-      script {
-        if (params.POST_STATUS && fileExists('.target_sha') && readFile('.target_sha').trim()) {
-          postGitHubStatus('failure', 'QA regression failed', params.DEV_REPO, readFile('.target_sha').trim())
-        }
-      }
-    }
     always {
+      script {
+        def sha = ''
+        if (fileExists('.target_sha')) {
+          sha = readFile('.target_sha').trim()
+        }
+        echo "Final build result: ${currentBuild.currentResult}"
+        echo "Final TARGET_SHA: ${sha}"
+
+        if (params.POST_STATUS && sha) {
+          def finalState = 'error'
+          def finalDescription = 'QA regression did not complete'
+          if (currentBuild.currentResult == 'SUCCESS') {
+            finalState = 'success'
+            finalDescription = 'QA regression passed'
+          } else if (currentBuild.currentResult == 'FAILURE' || currentBuild.currentResult == 'UNSTABLE') {
+            finalState = 'failure'
+            finalDescription = 'QA regression failed'
+          }
+          postGitHubStatus(finalState, finalDescription, params.DEV_REPO, sha)
+        }
+      }
       archiveArtifacts artifacts: 'artifacts/**', allowEmptyArchive: true
       sh "pkill -f 'http.server 8000 --directory ${DEV_APP_DIR}/app' || true"
       cleanWs(deleteDirs: true, notFailBuild: true)
