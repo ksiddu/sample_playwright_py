@@ -17,3 +17,4 @@ python3 -m playwright install
 APP_URL=https://example.com pytest -m smoke
 APP_URL=https://example.com pytest -m "regression and not smoke"
 ```
+New Content to trigger Jenkins SCM poll Wed  1 Apr 2026 17:58:29 +08
