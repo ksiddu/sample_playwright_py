@@ -72,7 +72,11 @@ pipeline {
             targetSha = resolvedSha ?: params.DEV_REF?.trim()
           } else {
             sh "rm -rf ${DEV_APP_DIR}"
-            sh "git clone --branch ${params.DEV_REF} --depth 1 https://github.com/${params.DEV_REPO}.git ${DEV_APP_DIR}"
+            sh """
+              git clone https://github.com/${params.DEV_REPO}.git ${DEV_APP_DIR}
+              git -C ${DEV_APP_DIR} fetch origin ${params.DEV_REF} || true
+              git -C ${DEV_APP_DIR} checkout ${params.DEV_REF}
+            """
             targetSha = sh(script: "git -C ${DEV_APP_DIR} rev-parse HEAD", returnStdout: true).trim()
           }
           targetSha = (targetSha ?: '').trim()
