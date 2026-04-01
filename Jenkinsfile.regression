@@ -63,17 +63,20 @@ pipeline {
     stage('Prepare Target') {
       steps {
         script {
+          def targetSha = ''
           if (params.APP_URL?.trim()) {
             def resolvedSha = sh(
               script: "git ls-remote https://github.com/${params.DEV_REPO}.git ${params.DEV_REF} | awk 'NR==1 {print \$1}'",
               returnStdout: true
             ).trim()
-            env.TARGET_SHA = resolvedSha ?: params.DEV_REF?.trim()
+            targetSha = resolvedSha ?: params.DEV_REF?.trim()
           } else {
             sh "rm -rf ${DEV_APP_DIR}"
             sh "git clone --branch ${params.DEV_REF} --depth 1 https://github.com/${params.DEV_REPO}.git ${DEV_APP_DIR}"
-            env.TARGET_SHA = sh(script: "git -C ${DEV_APP_DIR} rev-parse HEAD", returnStdout: true).trim()
+            targetSha = sh(script: "git -C ${DEV_APP_DIR} rev-parse HEAD", returnStdout: true).trim()
           }
+          env.TARGET_SHA = targetSha ?: ''
+          writeFile file: '.target_sha', text: env.TARGET_SHA
           echo "POST_STATUS: ${params.POST_STATUS}"
           echo "DEV_REF: ${params.DEV_REF}"
           echo "APP_URL: ${params.APP_URL}"
@@ -88,11 +91,11 @@ pipeline {
 
     stage('Mark Pending') {
       when {
-        expression { return params.POST_STATUS && env.TARGET_SHA?.trim() }
+        expression { return params.POST_STATUS && fileExists('.target_sha') && readFile('.target_sha').trim() }
       }
       steps {
         script {
-          postGitHubStatus('pending', 'QA regression is running', params.DEV_REPO, env.TARGET_SHA)
+          postGitHubStatus('pending', 'QA regression is running', params.DEV_REPO, readFile('.target_sha').trim())
         }
       }
     }
@@ -126,15 +129,15 @@ pipeline {
   post {
     success {
       script {
-        if (params.POST_STATUS && env.TARGET_SHA?.trim()) {
-          postGitHubStatus('success', 'QA regression passed', params.DEV_REPO, env.TARGET_SHA)
+        if (params.POST_STATUS && fileExists('.target_sha') && readFile('.target_sha').trim()) {
+          postGitHubStatus('success', 'QA regression passed', params.DEV_REPO, readFile('.target_sha').trim())
         }
       }
     }
     failure {
       script {
-        if (params.POST_STATUS && env.TARGET_SHA?.trim()) {
-          postGitHubStatus('failure', 'QA regression failed', params.DEV_REPO, env.TARGET_SHA)
+        if (params.POST_STATUS && fileExists('.target_sha') && readFile('.target_sha').trim()) {
+          postGitHubStatus('failure', 'QA regression failed', params.DEV_REPO, readFile('.target_sha').trim())
         }
       }
     }
