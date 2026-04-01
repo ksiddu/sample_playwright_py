@@ -29,6 +29,10 @@ on:
         description: Expected page heading
         required: false
         default: Sample Dev App
+      post_status:
+        description: Post qa/regression status back to the dev repo commit
+        required: false
+        default: "false"
 
 env:
   DEFAULT_DEV_REPO: ksiddu/sample_dev_app
@@ -36,6 +40,7 @@ env:
   DEFAULT_MARKER_EXPRESSION: regression
   DEFAULT_APP_TITLE: Sample Dev App
   DEFAULT_APP_HEADING: Sample Dev App
+  DEFAULT_POST_STATUS: "true"
 
 jobs:
   regression:
@@ -62,6 +67,7 @@ jobs:
             echo "marker_expression=${{ inputs.marker_expression || env.DEFAULT_MARKER_EXPRESSION }}" >> $GITHUB_OUTPUT
             echo "expected_title=${{ inputs.expected_title || env.DEFAULT_APP_TITLE }}" >> $GITHUB_OUTPUT
             echo "expected_heading=${{ inputs.expected_heading || env.DEFAULT_APP_HEADING }}" >> $GITHUB_OUTPUT
+            echo "post_status=${{ inputs.post_status }}" >> $GITHUB_OUTPUT
           else
             echo "repo=${{ env.DEFAULT_DEV_REPO }}" >> $GITHUB_OUTPUT
             echo "ref=${{ env.DEFAULT_DEV_REF }}" >> $GITHUB_OUTPUT
@@ -69,6 +75,7 @@ jobs:
             echo "marker_expression=${{ env.DEFAULT_MARKER_EXPRESSION }}" >> $GITHUB_OUTPUT
             echo "expected_title=${{ env.DEFAULT_APP_TITLE }}" >> $GITHUB_OUTPUT
             echo "expected_heading=${{ env.DEFAULT_APP_HEADING }}" >> $GITHUB_OUTPUT
+            echo "post_status=${{ env.DEFAULT_POST_STATUS }}" >> $GITHUB_OUTPUT
           fi
       - id: resolve_owner
         run: |
@@ -90,7 +97,7 @@ jobs:
             echo "sha=${{ steps.resolve.outputs.ref }}" >> $GITHUB_OUTPUT
           fi
       - name: Mark regression pending
-        if: env.DEV_REPO_STATUS_TOKEN != ''
+        if: steps.resolve.outputs.post_status == 'true' && env.DEV_REPO_STATUS_TOKEN != ''
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DEV_REPO_TOKEN }}
@@ -126,7 +133,7 @@ jobs:
           name: regression-artifacts
           path: artifacts
       - name: Mark regression success
-        if: env.DEV_REPO_STATUS_TOKEN != '' && steps.regression_tests.outcome == 'success'
+        if: steps.resolve.outputs.post_status == 'true' && env.DEV_REPO_STATUS_TOKEN != '' && steps.regression_tests.outcome == 'success'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DEV_REPO_TOKEN }}
@@ -141,7 +148,7 @@ jobs:
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             })
       - name: Mark regression failure
-        if: env.DEV_REPO_STATUS_TOKEN != '' && steps.regression_tests.outcome != 'success'
+        if: steps.resolve.outputs.post_status == 'true' && env.DEV_REPO_STATUS_TOKEN != '' && steps.regression_tests.outcome != 'success'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DEV_REPO_TOKEN }}
